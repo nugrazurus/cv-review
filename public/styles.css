@@ -332,6 +332,9 @@
   .max-w-7xl {
     max-width: var(--container-7xl);
   }
+  .max-w-full {
+    max-width: 100%;
+  }
   .flex-1 {
     flex: 1;
   }
@@ -472,6 +475,9 @@
   }
   .px-gutter {
     padding-inline: var(--spacing-gutter);
+  }
+  .px-md {
+    padding-inline: var(--spacing-md);
   }
   .py-1 {
     padding-block: calc(var(--spacing) * 1);

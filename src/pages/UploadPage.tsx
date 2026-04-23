@@ -80,22 +80,41 @@ export function UploadPage() {
           const dropzone = document.getElementById('file-dropzone');
           const fileInput = document.getElementById('file-input');
           const form = document.getElementById('upload-form');
+          const submitBtn = form.querySelector('button[type="submit"]');
           const progressOverlay = document.getElementById('progress-overlay');
           const progressBar = document.getElementById('progress-bar');
           const progressText = document.getElementById('progress-text');
           const errorNotification = document.getElementById('error-notification');
           const errorMessage = document.getElementById('error-message');
+          let isUploading = false;
 
-          dropzone.addEventListener('click', () => fileInput.click());
-          dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+          dropzone.addEventListener('click', () => { if (!isUploading) fileInput.click(); });
+          dropzone.addEventListener('dragover', (e) => { if (!isUploading) { e.preventDefault(); dropzone.classList.add('drag-over'); } });
           dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-          dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('drag-over'); if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; form.dispatchEvent(new Event('submit')); }});
+          dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('drag-over'); if (!isUploading && e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; updateDropzoneWithFile(fileInput.files[0].name); form.dispatchEvent(new Event('submit')); }});
+
+          fileInput.addEventListener('change', () => {
+            if (!isUploading && fileInput.files.length) {
+              updateDropzoneWithFile(fileInput.files[0].name);
+            }
+          });
+
+          function updateDropzoneWithFile(filename) {
+            dropzone.innerHTML = '<div class="flex flex-col items-center justify-center min-h-[200px]"><span class="material-symbols-outlined text-6xl text-primary-dark">check_circle</span><p class="font-display font-bold text-2xl mt-sm">File selected</p><p class="font-body text-base text-gray-600 mt-xs truncate max-w-full px-md">' + filename + '</p><p class="font-body text-sm text-gray-400 mt-xs">Click to change file</p></div>';
+          }
 
           form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (isUploading) return;
             if (!fileInput.files.length) { showError('Please select a file'); return; }
             const file = fileInput.files[0];
             if (file.size > 5 * 1024 * 1024) { showError('File too large (max 5MB)'); return; }
+
+            isUploading = true;
+            dropzone.style.pointerEvents = 'none';
+            dropzone.style.opacity = '0.5';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'ANALYZING...';
 
             progressOverlay.classList.remove('hidden');
             progressBar.style.width = '30%';
@@ -116,6 +135,11 @@ export function UploadPage() {
               window.location.href = '/results';
             } catch (err) {
               progressOverlay.classList.add('hidden');
+              isUploading = false;
+              dropzone.style.pointerEvents = '';
+              dropzone.style.opacity = '';
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'ANALYZE MY CV';
               showError(err.message);
             }
           });
