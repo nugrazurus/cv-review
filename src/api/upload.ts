@@ -7,7 +7,7 @@ export const uploadApi = new Hono();
 uploadApi.post('/upload', async (c) => {
   try {
     // Parse and validate file
-    const content = await parseFile(c);
+    const fileContent = await parseFile(c);
 
     // Get API config from environment
     const apiKey = c.env?.CLAUDE_API_KEY;
@@ -19,7 +19,7 @@ uploadApi.post('/upload', async (c) => {
     }
 
     // Analyze with Claude
-    const result = await analyzeCV(content, apiKey, baseUrl, model);
+    const result = await analyzeCV(fileContent, apiKey, baseUrl, model);
 
     return c.json(result);
   } catch (error) {

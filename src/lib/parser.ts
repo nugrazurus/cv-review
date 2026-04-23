@@ -1,13 +1,13 @@
-import './polyfills'; // Must be first - applies polyfills before pdfjs loads
 import { Context } from 'hono';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-// Disable worker for legacy build
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+export interface FileContent {
+  type: 'text' | 'pdf' | 'docx';
+  content: string; // text content for text/docx, base64 for pdf
+}
 
-export async function parseFile(c: Context): Promise<string> {
+export async function parseFile(c: Context): Promise<FileContent> {
   const formData = await c.req.parseBody();
   const file = formData['file'];
 
@@ -19,55 +19,31 @@ export async function parseFile(c: Context): Promise<string> {
     throw new Error('File too large (max 5MB)');
   }
 
-  // For text files, read directly
+  // Text files - read directly
   if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-    return await file.text();
+    return { type: 'text', content: await file.text() };
   }
 
-  // For PDF files, use pdfjs-dist
+  // PDF files - base64 encode for Claude
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
     const buffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(buffer);
-
-    try {
-      const loadingTask = pdfjsLib.getDocument({
-        data: uint8Array,
-        useWorkerFetch: false,
-        isEvalSupported: false,
-        useSystemFonts: true,
-      });
-
-      const pdfDocument = await loadingTask.promise;
-      let fullText = '';
-
-      for (let i = 1; i <= pdfDocument.numPages; i++) {
-        const page = await pdfDocument.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
-      }
-
-      if (fullText.trim().length > 50) {
-        return fullText.trim();
-      }
-      throw new Error('Could not extract meaningful text from PDF');
-    } catch (err) {
-      throw new Error('Failed to parse PDF: ' + (err instanceof Error ? err.message : 'Unknown error'));
-    }
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    return { type: 'pdf', content: base64 };
   }
 
-  // For DOCX files, try basic text extraction
-  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
+  // DOCX files - keep current extraction (Claude doesn't support DOCX native)
+  if (
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    file.name.endsWith('.docx')
+  ) {
     const buffer = await file.arrayBuffer();
     const text = extractReadableText(buffer);
-
     if (text.length < 50) {
-      throw new Error('Could not extract meaningful text from DOCX. Please try PDF or TXT format.');
+      throw new Error(
+        'Could not extract meaningful text from DOCX. Please try PDF or TXT format.'
+      );
     }
-
-    return text;
+    return { type: 'docx', content: text };
   }
 
   throw new Error('Unsupported file format. Please use PDF, DOCX, or TXT.');

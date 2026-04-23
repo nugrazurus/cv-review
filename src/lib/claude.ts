@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
+import { FileContent } from './parser';
 
 interface AnalysisResult {
   score: number;
@@ -49,7 +51,7 @@ Guidelines:
 - deepDive: 2-3 specific examples with before/after improvements`;
 
 export async function analyzeCV(
-  content: string,
+  fileContent: FileContent,
   apiKey: string,
   baseUrl?: string,
   model?: string
@@ -59,19 +61,37 @@ export async function analyzeCV(
     baseURL: baseUrl || undefined,
   });
 
+  // Build content based on file type
+  const content: ContentBlockParam[] = [];
+
+  if (fileContent.type === 'pdf') {
+    content.push({
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'application/pdf',
+        data: fileContent.content,
+      },
+    });
+    content.push({
+      type: 'text',
+      text: 'Analyze this CV/resume document.',
+    });
+  } else {
+    content.push({
+      type: 'text',
+      text: `Analyze this CV/resume:\n\n${fileContent.content}`,
+    });
+  }
+
   const response = await client.messages.create({
     model: model || 'claude-sonnet-4-20250514',
     max_tokens: 2048,
     system: SYSTEM_PROMPT,
     thinking: {
-      type: 'disabled'
+      type: 'disabled',
     },
-    messages: [
-      {
-        role: 'user',
-        content: `Analyze this CV/resume:\n\n${content}`,
-      },
-    ],
+    messages: [{ role: 'user', content }],
   });
 
   const textContent = response.content.find((block) => block.type === 'text');
